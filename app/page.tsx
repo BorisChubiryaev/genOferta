@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { Operation, HighlightMode } from "@/lib/types";
 
 type Stage = "upload" | "review" | "done";
+type EngineMode = "auto" | "ai" | "algo";
 
 interface ApplyResult {
   operationId: string;
@@ -67,9 +68,12 @@ export default function Home() {
   const [operations, setOperations] = useState<Operation[]>([]);
   const [included, setIncluded] = useState<Record<string, boolean>>({});
   const [engine, setEngine] = useState<string>("");
+  const [usedMode, setUsedMode] = useState<EngineMode>("auto");
   const [notes, setNotes] = useState<string[]>([]);
   const [offline, setOffline] = useState(false);
 
+  const [engineMode, setEngineMode] = useState<EngineMode>("auto");
+  const [model, setModel] = useState<string>("");
   const [highlightMode, setHighlightMode] = useState<HighlightMode>("color");
   const [results, setResults] = useState<ApplyResult[]>([]);
   const [outOffer, setOutOffer] = useState<string>("");
@@ -91,12 +95,15 @@ export default function Home() {
       setOfferB64(await fileToB64(offer));
       const fd = new FormData();
       changes.forEach((c) => fd.append("changes", c));
+      fd.append("mode", engineMode);
+      if (engineMode !== "algo" && model.trim()) fd.append("model", model.trim());
       const resp = await fetch("/api/parse", { method: "POST", body: fd });
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.error || "Ошибка разбора");
       setOperations(data.operations);
       setIncluded({});
       setEngine(data.engine);
+      setUsedMode((data.mode as EngineMode) || "auto");
       setNotes(data.notes || []);
       setOffline(!!data.offline);
       setStage("review");
@@ -179,6 +186,38 @@ export default function Home() {
             onFiles={(fs) => setChanges(fs)}
             files={changes}
           />
+          <fieldset className="rounded-xl border border-black/10 px-4 py-3 dark:border-white/10">
+            <legend className="px-1 text-xs opacity-60">Способ разбора инструкций</legend>
+            <div className="flex flex-col gap-1.5 text-sm">
+              {[
+                { v: "auto", t: "Авто", d: "ИИ, если доступен, иначе алгоритм" },
+                { v: "ai", t: "ИИ (OpenRouter)", d: "принудительно ИИ; при недоступности — алгоритм" },
+                { v: "algo", t: "Только алгоритм", d: "детерминированный парсер, без ИИ и без сети" },
+              ].map((o) => (
+                <label key={o.v} className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="engine"
+                    checked={engineMode === o.v}
+                    onChange={() => setEngineMode(o.v as EngineMode)}
+                  />
+                  <span className="font-medium">{o.t}</span>
+                  <span className="text-xs opacity-55">— {o.d}</span>
+                </label>
+              ))}
+            </div>
+            {engineMode !== "algo" && (
+              <label className="mt-2 block text-xs">
+                <span className="opacity-60">Модель OpenRouter (необязательно; по умолчанию из настроек сервера)</span>
+                <input
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  placeholder="напр. dots-studio/dots-3-note-preview:free"
+                  className="mt-0.5 w-full rounded border border-black/15 bg-transparent px-2 py-1 dark:border-white/15"
+                />
+              </label>
+            )}
+          </fieldset>
           <button
             onClick={handleParse}
             disabled={busy}
@@ -196,11 +235,18 @@ export default function Home() {
               Распознано операций: {operations.length}
             </span>
             <span className="rounded-full bg-black/10 px-2 py-0.5 text-xs dark:bg-white/10">
-              разбор: {engine === "llm" ? "ИИ (OpenRouter)" : engine === "mixed" ? "ИИ + оффлайн" : "оффлайн-парсер"}
+              разбор:{" "}
+              {engine === "llm"
+                ? "ИИ (OpenRouter)"
+                : engine === "mixed"
+                  ? "ИИ + алгоритм"
+                  : usedMode === "algo"
+                    ? "алгоритм (выбрано)"
+                    : "алгоритм"}
             </span>
-            {offline && (
+            {offline && usedMode !== "algo" && (
               <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-700 dark:text-amber-300">
-                оффлайн-режим (ключ ИИ не задан)
+                ИИ недоступен — сработал алгоритм
               </span>
             )}
           </div>

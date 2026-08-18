@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseAllChangeDocs, type ChangeDocInput } from "@/lib/pipeline";
-import { parseConfigFromEnv, isOffline } from "@/lib/config";
+import { parseConfigForMode, isOffline, type EngineMode } from "@/lib/config";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -13,12 +13,18 @@ export async function POST(req: NextRequest) {
     if (changeFiles.length === 0) {
       return NextResponse.json({ error: "Не переданы документы с изменениями" }, { status: 400 });
     }
+    const modeRaw = (form.get("mode") as string) || "auto";
+    const mode: EngineMode = ["auto", "ai", "algo"].includes(modeRaw) ? (modeRaw as EngineMode) : "auto";
+    const model = (form.get("model") as string) || undefined;
+
     const changeDocs: ChangeDocInput[] = [];
     for (const f of changeFiles) {
       changeDocs.push({ name: f.name, data: new Uint8Array(await f.arrayBuffer()) });
     }
-    const { operations, engine, notes } = await parseAllChangeDocs(changeDocs, parseConfigFromEnv());
-    return NextResponse.json({ operations, engine, notes, offline: isOffline() });
+    const cfg = parseConfigForMode(mode, model);
+    const { operations, engine, notes } = await parseAllChangeDocs(changeDocs, cfg);
+    // В режиме «только алгоритм» ИИ не задействуется намеренно — это не оффлайн-«вынужденно».
+    return NextResponse.json({ operations, engine, notes, offline: isOffline(), mode });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }
