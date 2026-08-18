@@ -15,6 +15,7 @@ export function parseConfigFromEnv(): ParseConfig {
       model: process.env.OPENROUTER_MODEL || "deepseek/deepseek-chat-v3.1:free",
       appUrl: process.env.OPENROUTER_APP_URL,
       appTitle: process.env.OPENROUTER_APP_TITLE || "genOferta",
+      baseUrl: process.env.OPENROUTER_BASE_URL || undefined,
     },
   };
 }

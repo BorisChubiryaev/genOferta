@@ -45,6 +45,8 @@ export interface LlmConfig {
   model: string;
   appUrl?: string;
   appTitle?: string;
+  /** База OpenAI-совместимого API. По умолчанию — OpenRouter. */
+  baseUrl?: string;
 }
 
 export async function parseInstructionsLLM(
@@ -56,7 +58,8 @@ export async function parseInstructionsLLM(
     "Инструкции об изменениях (по одной на строку):\n" +
     paras.map((p, i) => `${i + 1}. ${p}`).join("\n");
 
-  const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const base = (cfg.baseUrl ?? "https://openrouter.ai/api/v1").replace(/\/$/, "");
+  const resp = await fetch(`${base}/chat/completions`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${cfg.apiKey}`,
