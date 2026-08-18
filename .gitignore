@@ -29,3 +29,6 @@ next-env.d.ts
 
 # runtime output of the engine
 /tmp-out/
+
+# vercel
+/.vercel
